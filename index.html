@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>钢梁整体稳定性分析 | GB 50017-2017</title>
+
+<!-- KaTeX 走国内 CDN，Three.js 走本地 (避免国内被墙) -->
+<link rel="stylesheet" href="https://cdn.staticfile.net/KaTeX/0.16.9/katex.min.css"
+      onerror="this.onerror=null;this.href='https://lib.baomitu.com/KaTeX/0.16.9/katex.min.css';">
+<script defer src="https://cdn.staticfile.net/KaTeX/0.16.9/katex.min.js"
+        onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://lib.baomitu.com/KaTeX/0.16.9/katex.min.js';document.head.appendChild(s);"></script>
+<script src="js/lib/three.min.js"></script>
+<script src="js/lib/OrbitControls.js"></script>
+
+<style>
+/* ── 全局 ── */
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Microsoft YaHei",sans-serif;background:#0f172a;color:#e2e8f0;font-size:14px}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#1e293b}
+::-webkit-scrollbar-thumb{background:#475569;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#64748b}
+
+/* ── 布局 ── */
+.app-root{display:flex;flex-direction:column;height:100vh}
+.app-header{background:#1e293b;border-bottom:1px solid #334155;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.app-header h1{font-size:15px;font-weight:700;margin:0;letter-spacing:.5px}
+.app-header .logo{width:20px;height:20px;color:#60a5fa;margin-right:8px;vertical-align:middle}
+.app-header .meta{font-size:11px;color:#64748b}
+.app-main{display:flex;flex:1;overflow:hidden}
+.panel-left,.panel-right{flex-shrink:0;overflow-y:auto;background:#1e293b;padding:14px}
+.panel-left{width:300px;border-right:1px solid #334155}
+.panel-right{width:380px;border-left:1px solid #334155}
+.panel-center{flex:1;position:relative;background:#0a0e1a;min-width:0}
+#three-canvas{display:block;width:100%;height:100%}
+.canvas-hint{position:absolute;bottom:10px;left:10px;font-size:11px;color:#64748b;pointer-events:none}
+.canvas-info{position:absolute;top:10px;left:10px;background:rgba(15,23,42,.85);border:1px solid #334155;border-radius:4px;padding:8px 12px;font-size:11px;color:#e2e8f0;pointer-events:none;line-height:1.6;min-width:180px;backdrop-filter:blur(4px)}
+.canvas-info .ci-title{color:#60a5fa;font-weight:700;font-size:12px;margin-bottom:4px;border-bottom:1px solid #334155;padding-bottom:2px}
+.canvas-info .ci-row{display:flex;justify-content:space-between;gap:14px}
+.canvas-info .ci-key{color:#94a3b8}
+.canvas-info .ci-val{color:#e2e8f0;font-family:Consolas,monospace}
+.canvas-legend{position:absolute;top:10px;right:10px;background:rgba(15,23,42,.85);border:1px solid #334155;border-radius:4px;padding:8px 12px;font-size:11px;color:#94a3b8;pointer-events:none;line-height:1.6;backdrop-filter:blur(4px)}
+.canvas-legend .lg-item{display:flex;align-items:center;gap:6px;margin:2px 0}
+.canvas-legend .lg-dot{display:inline-block;width:12px;height:12px;border-radius:2px;flex-shrink:0}
+
+/* ── 左栏控件 ── */
+section.input-group{margin-bottom:18px}
+.section-title{font-size:13px;font-weight:600;color:#60a5fa;border-bottom:1px solid #334155;padding-bottom:4px;margin-bottom:12px;display:flex;align-items:center;gap:4px}
+.field-label{display:block;font-size:11px;color:#94a3b8;margin-bottom:4px}
+.field-input{width:100%;background:#334155;border:1px solid #475569;border-radius:4px;padding:5px 8px;font-size:13px;color:#e2e8f0;outline:none;font-family:inherit}
+.field-input:focus{border-color:#3b82f6}
+.field-input::-webkit-inner-spin-button,.field-input::-webkit-outer-spin-button{opacity:1}
+.field-radio{margin-right:4px;accent-color:#3b82f6;vertical-align:middle}
+.radio-row{display:flex;gap:14px;font-size:13px}
+.radio-row label{display:inline-flex;align-items:center;cursor:pointer}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field-stack > * + *{margin-top:8px}
+.section-preview{background:#0f172a;border:1px solid #334155;border-radius:4px;padding:8px;margin-bottom:8px;display:flex;justify-content:center}
+.section-preview svg{width:100%;max-width:240px;height:200px}
+.section-preview svg .dim-line{stroke:#fbbf24;stroke-width:1}
+.section-preview svg .dim-text{fill:#fbbf24;font-size:9px;font-family:Consolas,monospace}
+.section-preview svg .sec-fill{fill:#3b82f6;stroke:#60a5fa;stroke-width:1}
+
+/* ── 按钮 ── */
+.btn{display:block;width:100%;border:none;border-radius:4px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s ease;font-family:inherit}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#3b82f6}
+.btn-secondary{background:#475569;color:#e2e8f0}
+.btn-secondary:hover{background:#64748b}
+.btn + .btn{margin-top:8px}
+
+/* ── 右栏结果卡片 ── */
+.results-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#64748b;font-size:13px;text-align:center;padding:0 20px}
+.results-placeholder svg{width:48px;height:48px;margin-bottom:12px;opacity:.4}
+.card{background:#283244;border:1px solid #334155;border-radius:6px;padding:10px 12px;margin-bottom:10px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none}
+.card-title .arrow{margin-left:auto;color:#64748b;font-size:11px}
+.collapse-body{max-height:2000px;overflow:hidden;transition:max-height .3s ease}
+.collapse-body.closed{max-height:0}
+.result-section-title{font-size:11px;color:#60a5fa;font-weight:600;margin:8px 0 4px;padding-left:4px;border-left:2px solid #3b82f6}
+.result-row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-bottom:1px dotted #334155}
+.result-row:last-child{border-bottom:none}
+.result-label{color:#94a3b8}
+.result-val{color:#e2e8f0;font-family:"Consolas","Monaco",monospace}
+.badge-ok{display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;background:rgba(34,197,94,.18);color:#86efac;border:1px solid rgba(34,197,94,.4)}
+.badge-ng{display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;background:rgba(239,68,68,.18);color:#fca5a5;border:1px solid rgba(239,68,68,.4)}
+.center{text-align:center}
+.mt-2{margin-top:8px}
+.muted{color:#64748b;font-size:11px;margin-top:4px}
+.hidden{display:none !important}
+
+/* ── 范围滑块 ── */
+input[type=range]{width:100%;accent-color:#3b82f6}
+input[type=checkbox]{accent-color:#3b82f6;margin-right:6px;vertical-align:middle}
+.chk-row{display:flex;align-items:center;font-size:13px;margin-top:6px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="app-root">
+
+<!-- ───── Header ───── -->
+<header class="app-header">
+  <div style="display:flex;align-items:center">
+    <svg class="logo" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg>
+    <h1>钢梁整体稳定性分析</h1>
+  </div>
+  <span class="meta">GB 50017-2017 · 教学演示</span>
+</header>
+
+<!-- ───── Main 3-Column ───── -->
+<div class="app-main">
+
+<!-- ══════ LEFT: Input Panel ══════ -->
+<aside id="panel-left" class="panel-left">
+
+  <!-- 1. 截面设置 -->
+  <section class="input-group">
+    <div class="section-title">📐 截面设置</div>
+    <div class="field-stack">
+      <div>
+        <label class="field-label">截面类型</label>
+        <div class="radio-row">
+          <label><input type="radio" name="sectionType" value="I" class="field-radio" checked>工字钢</label>
+          <label><input type="radio" name="sectionType" value="C" class="field-radio">槽钢</label>
+        </div>
+      </div>
+      <div>
+        <label class="field-label">截面来源</label>
+        <div class="radio-row">
+          <label><input type="radio" name="sectionSrc" value="table" class="field-radio" checked>型钢表</label>
+          <label><input type="radio" name="sectionSrc" value="custom" class="field-radio">自定义</label>
+        </div>
+      </div>
+      <div id="profile-select-wrap">
+        <label class="field-label">型号</label>
+        <select id="profileSelect" class="field-input"></select>
+      </div>
+      <div id="custom-inputs" class="hidden">
+        <div class="section-preview"><svg id="section-svg" viewBox="0 0 200 200"></svg></div>
+        <div class="grid2">
+          <div><label class="field-label">h (mm)</label><input id="inp-h" type="number" class="field-input" value="200"></div>
+          <div><label class="field-label">b (mm)</label><input id="inp-b" type="number" class="field-input" value="100"></div>
+          <div><label class="field-label">t<sub>w</sub> (mm)</label><input id="inp-tw" type="number" class="field-input" value="7"></div>
+          <div><label class="field-label">t<sub>f</sub> (mm)</label><input id="inp-tf" type="number" class="field-input" value="11.4"></div>
+          <div><label class="field-label">r (mm)</label><input id="inp-r" type="number" class="field-input" value="9"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 材料 -->
+  <section class="input-group">
+    <div class="section-title">🧱 材料</div>
+    <label class="field-label">钢材牌号</label>
+    <select id="materialGrade" class="field-input">
+      <option value="Q235">Q235 (f=215 MPa, t≤16)</option>
+      <option value="Q345" selected>Q345 (f=305 MPa, t≤16)</option>
+      <option value="Q390">Q390 (f=350 MPa, t≤16)</option>
+      <option value="Q420">Q420 (f=380 MPa, t≤16)</option>
+      <option value="Q460">Q460 (f=410 MPa, t≤16)</option>
+    </select>
+  </section>
+
+  <!-- 3. 几何与支座 -->
+  <section class="input-group">
+    <div class="section-title">📏 几何与支座</div>
+    <div class="field-stack">
+      <div><label class="field-label">梁长度 L (mm)</label><input id="inp-L" type="number" class="field-input" value="6000"></div>
+      <div><label class="field-label">强轴侧向支承间距 l₁ (mm)</label><input id="inp-l1" type="number" class="field-input" value="6000"></div>
+      <div><label class="field-label">弱轴侧向支承间距 l₂ = l<sub>b</sub> (mm)</label><input id="inp-l2" type="number" class="field-input" value="6000"></div>
+      <div>
+        <label class="field-label">支座类型</label>
+        <div class="radio-row">
+          <label><input type="radio" name="supportType" value="simply" class="field-radio" checked>简支</label>
+          <label><input type="radio" name="supportType" value="cantilever" class="field-radio">悬臂</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 荷载 -->
+  <section class="input-group">
+    <div class="section-title">⬇️ 荷载</div>
+    <div class="field-stack">
+      <div>
+        <label class="field-label">荷载工况</label>
+        <select id="loadCaseSelect" class="field-input"></select>
+      </div>
+      <div id="load-params" class="field-stack"></div>
+      <div>
+        <label class="field-label">荷载作用位置</label>
+        <div class="radio-row">
+          <label><input type="radio" name="loadPos" value="top" class="field-radio">上翼缘</label>
+          <label><input type="radio" name="loadPos" value="center" class="field-radio" checked>形心</label>
+          <label><input type="radio" name="loadPos" value="bottom" class="field-radio">下翼缘</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. 可视化 -->
+  <section class="input-group">
+    <div class="section-title">🎨 可视化</div>
+    <div class="field-stack">
+      <div>
+        <label class="field-label">变形放大系数: <span id="scale-val">自动</span></label>
+        <input id="inp-scale" type="range" min="0" max="100" value="0">
+      </div>
+      <label class="chk-row"><input type="checkbox" id="chk-moment" checked>显示弯矩图</label>
+      <label class="chk-row"><input type="checkbox" id="chk-anim" checked>播放屈曲动画</label>
+      <label class="chk-row"><input type="checkbox" id="chk-axes" checked>显示坐标轴</label>
+    </div>
+  </section>
+
+  <!-- Buttons -->
+  <div>
+    <button id="btn-calc" class="btn btn-primary">▶ 计算并刷新</button>
+    <button id="btn-reset" class="btn btn-secondary">↻ 重置</button>
+  </div>
+</aside>
+
+<!-- ══════ CENTER: 3D Canvas ══════ -->
+<main id="panel-center" class="panel-center">
+  <canvas id="three-canvas"></canvas>
+  <div id="canvas-info" class="canvas-info"></div>
+  <div id="canvas-legend" class="canvas-legend"></div>
+  <div class="canvas-hint">鼠标拖动旋转 · 滚轮缩放 · 右键平移</div>
+</main>
+
+<!-- ══════ RIGHT: Results Panel ══════ -->
+<aside id="panel-right" class="panel-right">
+
+  <!-- Placeholder before calculation -->
+  <div id="results-placeholder" class="results-placeholder">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    请设置参数后点击「计算并刷新」
+  </div>
+
+  <!-- Results container (hidden initially) -->
+  <div id="results-container" class="hidden">
+
+    <!-- 综合判定 -->
+    <div id="card-summary" class="card" style="border-width:2px">
+      <div class="card-title">📋 综合判定</div>
+      <div id="summary-content" class="center" style="padding:6px 0"></div>
+    </div>
+
+    <!-- 截面特性 -->
+    <div class="card">
+      <div class="card-title" onclick="toggleCard(this)">📐 截面特性 <span class="arrow">▼</span></div>
+      <div id="card-section" class="collapse-body"></div>
+    </div>
+
+    <!-- 整体稳定 LTB -->
+    <div class="card">
+      <div class="card-title" onclick="toggleCard(this)">🔄 整体稳定（侧向扭转屈曲）<span class="arrow">▼</span></div>
+      <div id="card-ltb" class="collapse-body"></div>
+    </div>
+
+    <!-- 局部屈曲 -->
+    <div class="card">
+      <div class="card-title" onclick="toggleCard(this)">📦 局部屈曲限值 <span class="arrow">▼</span></div>
+      <div id="card-local" class="collapse-body"></div>
+    </div>
+
+    <!-- 抗弯强度 -->
+    <div class="card">
+      <div class="card-title" onclick="toggleCard(this)">💪 抗弯强度 <span class="arrow">▼</span></div>
+      <div id="card-strength" class="collapse-body"></div>
+    </div>
+
+    <!-- 公式详情 -->
+    <div class="card">
+      <div class="card-title" onclick="toggleCard(this)">📖 公式与代入值 <span class="arrow">▼</span></div>
+      <div id="card-formulas" class="collapse-body closed"></div>
+    </div>
+
+  </div>
+</aside>
+
+</div><!-- end app-main -->
+</div><!-- end app-root -->
+
+<!-- ───── Scripts ───── -->
+<script src="js/sections.js"></script>
+<script src="js/loadcases.js"></script>
+<script src="js/code.js"></script>
+<script src="js/three-scene.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
